@@ -12,10 +12,30 @@ import (
 )
 
 // StepResolveAddress determines the address Packer connects to. When
-// use_elastic_ip is set it polls the instance's elastic IP until it is bound;
-// otherwise it uses the instance's private networkAddress. The result is
-// stored in state as "vm_ip". Skipped for the "none" communicator.
+// use_elastic_ip is set it polls the instance's elastic IP until it has a
+// usable public address (status "ready" or "bound"); otherwise it uses the
+// instance's private networkAddress. The result is stored in state as "vm_ip".
+// Skipped for the "none" communicator.
 type StepResolveAddress struct{}
+
+// elasticIPUsable reports the public address and whether the elastic IP is
+// usable for an SSH connection. An IP is usable as soon as it has a non-empty
+// publicAddress and its status is "ready" or "bound": on some upstreams the
+// floating IP never flips to "bound" even though the address is already fully
+// routable, so "ready" + an address is treated as usable too. Without an
+// address the IP is never usable regardless of status.
+func elasticIPUsable(eip apiclient.ElasticIP) (string, bool) {
+	addr := derefStr(eip.PublicAddress)
+	if addr == "" {
+		return "", false
+	}
+	switch eip.Status {
+	case "ready", "bound":
+		return addr, true
+	default:
+		return "", false
+	}
+}
 
 func (s *StepResolveAddress) Run(ctx context.Context, state multistep.StateBag) multistep.StepAction {
 	cfg := state.Get("config").(*Config)
@@ -38,7 +58,7 @@ func (s *StepResolveAddress) Run(ctx context.Context, state multistep.StateBag) 
 		return multistep.ActionContinue
 	}
 
-	ui.Say("Waiting for elastic IP to be bound ...")
+	ui.Say("Waiting for elastic IP to become usable ...")
 	deadline := time.After(cfg.stateTimeout)
 	ticker := time.NewTicker(cfg.pollInterval)
 	defer ticker.Stop()
@@ -51,8 +71,8 @@ func (s *StepResolveAddress) Run(ctx context.Context, state multistep.StateBag) 
 			ui.Error("Build was cancelled while waiting for the elastic IP")
 			return multistep.ActionHalt
 		case <-deadline:
-			state.Put("error", fmt.Errorf("timed out waiting for elastic IP to be bound"))
-			ui.Error("Timed out waiting for the elastic IP to bind")
+			state.Put("error", fmt.Errorf("timed out waiting for elastic IP to become usable"))
+			ui.Error("Timed out waiting for the elastic IP to become usable")
 			return multistep.ActionHalt
 		case <-ticker.C:
 			eips, err := client.ListElasticIPsByInstance(ctx, id)
@@ -61,11 +81,13 @@ func (s *StepResolveAddress) Run(ctx context.Context, state multistep.StateBag) 
 				continue
 			}
 			for _, eip := range eips {
-				addr := derefStr(eip.PublicAddress)
-				if addr != "" && eip.Status == "bound" {
+				if addr, ok := elasticIPUsable(eip); ok {
+					// Capture the elastic IP id so Cleanup releases it
+					// on teardown — for both "ready" and "bound", since
+					// the instance-delete cascade is not relied upon.
 					state.Put("elastic_ip_id", eip.ID)
 					state.Put("vm_ip", addr)
-					ui.Sayf("Instance reachable at %s", addr)
+					ui.Sayf("Instance reachable at %s (elastic IP %s)", addr, eip.Status)
 					return multistep.ActionContinue
 				}
 			}
