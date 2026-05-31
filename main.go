@@ -10,7 +10,17 @@ import (
 	"github.com/studio-ch/packer-plugin-xcloud/builder"
 )
 
-var pluginVersion = version.NewPluginVersion("0.1.0", "", "")
+// Version / VersionPrerelease are injected at build time via -ldflags by
+// goreleaser (see .goreleaser.yml) so the binary self-reports the release
+// tag. Packer matches this self-reported version against the release tag when
+// installing, so it MUST track the tag. The defaults below apply to plain
+// `go build` / dev builds.
+var (
+	Version           = "0.0.0"
+	VersionPrerelease = "dev"
+)
+
+var pluginVersion = version.NewPluginVersion(Version, VersionPrerelease, "")
 
 func main() {
 	pps := plugin.NewSet()

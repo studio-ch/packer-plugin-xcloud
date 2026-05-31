@@ -21,7 +21,11 @@ builds:
     flags:
       - -trimpath # removes all file system paths from the compiled executable
     ldflags:
-      - '-s -w'
+      # Inject the release tag so the binary self-reports the correct version
+      # (Packer matches this against the release tag on install). On a tagged
+      # build {{.Version}} is e.g. "0.2.1" (no leading v) and the prerelease
+      # is cleared so the version is clean.
+      - '-s -w -X main.Version={{ .Version }} -X main.VersionPrerelease='
     goos:
       - freebsd
       - windows
