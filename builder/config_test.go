@@ -119,6 +119,42 @@ func TestPrepareNoImageSource(t *testing.T) {
 	}
 }
 
+func TestPrepareDefaultsSSHUsernameFromAdminUsername(t *testing.T) {
+	cfg := baseConfig()
+	cfg.Comm = communicator.Config{Type: "ssh"}
+	cfg.AdminUsername = "ubuntu"
+	if _, err := cfg.prepare(); err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	if cfg.Comm.SSHUsername != "ubuntu" {
+		t.Errorf("Comm.SSHUsername = %q, want %q (from admin_username)", cfg.Comm.SSHUsername, "ubuntu")
+	}
+}
+
+func TestPrepareDefaultsSSHUsernameToAdmin(t *testing.T) {
+	cfg := baseConfig()
+	cfg.Comm = communicator.Config{Type: "ssh"}
+	if _, err := cfg.prepare(); err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	if cfg.Comm.SSHUsername != "admin" {
+		t.Errorf("Comm.SSHUsername = %q, want %q (default)", cfg.Comm.SSHUsername, "admin")
+	}
+}
+
+func TestPreparePreservesExplicitSSHUsername(t *testing.T) {
+	cfg := baseConfig()
+	cfg.Comm = communicator.Config{Type: "ssh"}
+	cfg.Comm.SSHUsername = "root"
+	cfg.AdminUsername = "ubuntu"
+	if _, err := cfg.prepare(); err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	if cfg.Comm.SSHUsername != "root" {
+		t.Errorf("Comm.SSHUsername = %q, want %q (explicit ssh_username preserved)", cfg.Comm.SSHUsername, "root")
+	}
+}
+
 func TestPrepareRejectsWinRM(t *testing.T) {
 	cfg := baseConfig()
 	cfg.Comm = communicator.Config{Type: "winrm"}

@@ -95,7 +95,7 @@ packer build example.pkr.hcl
 | `pull_password`      | string    | —                | Registry password for `pull_image`. |
 | `pull_credential_id` | string    | —                | Saved registry credential id (alternative to user/pass). |
 | `pull_precache`      | bool      | `false`          | |
-| `admin_username`     | string    | server-resolved  | Falls back to the image label, then `admin`. |
+| `admin_username`     | string    | server-resolved  | SSH login user. At run time it is resolved from the server/image label, falling back to this value, then `admin`. Sets the SSH communicator username (use `ssh_username` to override). |
 | `ssh_key_ids`        | list      | —                | Existing SSH key ids. When empty, an ephemeral key is generated for the build. |
 | `use_elastic_ip`     | bool      | `true`           | Allocate a public IP for SSH; otherwise use the private address. |
 | `push_image`         | string    | —                | OCI reference to push the finished image to. |

@@ -126,6 +126,18 @@ func (c *Config) prepare() ([]string, error) {
 	if c.Comm.SSHPort == 0 {
 		c.Comm.SSHPort = 22
 	}
+	// Default the SSH login user so the communicator validates at
+	// prepare/validate time. The real admin username is resolved at run
+	// time from the server/image label in StepCreateInstance; this only
+	// provides a sane default (admin_username, then "admin") so an explicit
+	// ssh_username is not required.
+	if c.Comm.SSHUsername == "" {
+		if c.AdminUsername != "" {
+			c.Comm.SSHUsername = c.AdminUsername
+		} else {
+			c.Comm.SSHUsername = "admin"
+		}
+	}
 
 	// Polling defaults.
 	if c.PollInterval == "" {
