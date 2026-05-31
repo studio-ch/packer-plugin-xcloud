@@ -66,6 +66,50 @@ func TestPrepareUseElasticIPExplicitFalse(t *testing.T) {
 	}
 }
 
+func TestPrepareAgentCommunicatorMode(t *testing.T) {
+	cfg := &Config{
+		APIEndpoint:          "https://api.example.test",
+		APIToken:             "tok",
+		RegionID:             testRegionID,
+		Image:                "macos-tahoe-agent",
+		UseAgentCommunicator: true,
+		// Deliberately leave Comm unset: agent mode must force "none"
+		// and skip SSH validation without an explicit communicator block.
+	}
+	if _, err := cfg.prepare(); err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	if cfg.Comm.Type != "none" {
+		t.Errorf("Comm.Type = %q, want \"none\" in agent mode", cfg.Comm.Type)
+	}
+	if cfg.useElasticIP {
+		t.Error("useElasticIP = true, want false (agent mode default)")
+	}
+	if !needsKeyRegistration(cfg) {
+		// agent mode forces comm type none → no key registration.
+	} else {
+		t.Error("needsKeyRegistration = true, want false in agent mode")
+	}
+}
+
+func TestPrepareAgentModeRespectsExplicitElasticIP(t *testing.T) {
+	cfg := &Config{
+		APIEndpoint:          "https://api.example.test",
+		APIToken:             "tok",
+		RegionID:             testRegionID,
+		Image:                "macos-tahoe-agent",
+		UseAgentCommunicator: true,
+	}
+	tru := true
+	cfg.UseElasticIP = &tru
+	if _, err := cfg.prepare(); err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	if !cfg.useElasticIP {
+		t.Error("useElasticIP = false, want true (explicitly set even in agent mode)")
+	}
+}
+
 func TestPrepareEnvFallback(t *testing.T) {
 	t.Setenv("CLOUD_CONSOLE_API_ENDPOINT", "https://env.example.test")
 	t.Setenv("CLOUD_CONSOLE_API_TOKEN", "env-token")

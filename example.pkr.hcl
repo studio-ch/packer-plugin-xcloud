@@ -64,3 +64,50 @@ build {
     ]
   }
 }
+
+# ---------------------------------------------------------------------------
+# Agent communicator variant (no SSH).
+#
+# `use_agent_communicator = true` runs provisioners *inside* the VM through the
+# in-guest xcloud-agent (over the Cloud Console agent exec/file API) instead of
+# SSH. Because the agent runs as root:
+#   * no SSH reachability is required (no public/elastic IP, no port 22),
+#   * no SSH key is generated or registered,
+#   * provisioners run as root — no `sudo` and no sudo password.
+#
+# Requirements:
+#   * the Cloud Console API exposes /v1/xcloud/instances/:id/agent/exec + /files
+#   * the tenant has the agent-exec entitlement enabled
+#     (tenants.xcloud_agent_exec_enabled = true) — ask an operator.
+#
+# In this mode the plugin forces the communicator to "none", defaults
+# use_elastic_ip to false, and waits for the agent to report healthy before
+# provisioning.
+
+source "xcloud" "macos_agent" {
+  api_endpoint = "https://<your-cloud-console-host>"
+  # api_token  = "..."   # prefer CLOUD_CONSOLE_API_TOKEN
+
+  region_id = "00000000-0000-0000-0000-000000000000"
+  name      = "packer-macos-agent"
+
+  cpu_cores = 4
+  memory    = 8
+  disk      = 64
+
+  image = "macos-tahoe-agent"
+
+  # Run provisioners via the in-guest agent (root, no SSH, no public IP).
+  use_agent_communicator = true
+}
+
+build {
+  sources = ["source.xcloud.macos_agent"]
+
+  provisioner "shell" {
+    inline = [
+      "whoami",          # -> root
+      "sw_vers || uname -a",
+    ]
+  }
+}

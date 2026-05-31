@@ -69,6 +69,17 @@ type Config struct {
 	// false to use the instance's private networkAddress instead.
 	UseElasticIP *bool `mapstructure:"use_elastic_ip"`
 
+	// UseAgentCommunicator runs provisioners through the in-guest
+	// xcloud-agent (over the Cloud Console agent exec/file API) instead of
+	// SSH. Because the agent runs as root there is no SSH-reachability
+	// requirement, no public IP, no SSH key and no sudo password. It
+	// requires the tenant to have the agent-exec entitlement enabled on the
+	// Cloud Console. When true the builder forces comm type "none",
+	// defaults use_elastic_ip to false, and skips StepSSHKey +
+	// communicator.StepConnect in favour of StepConnectAgent. SSH remains
+	// the default when this is unset.
+	UseAgentCommunicator bool `mapstructure:"use_agent_communicator"`
+
 	// Optional push target. When set, the builder shuts the VM down after
 	// provisioning and pushes it as an OCI image to PushImage.
 	PushImage      string `mapstructure:"push_image"`
@@ -126,9 +137,19 @@ func (c *Config) prepare() ([]string, error) {
 		c.Network = "default"
 	}
 
-	// Reachability default: true when unset.
+	// Agent communicator mode: provisioners run in-guest via the
+	// xcloud-agent, not SSH. Force comm type "none" so the SSH
+	// communicator validation is skipped (no key / username required) and
+	// no StepConnect SSH dial is attempted.
+	if c.UseAgentCommunicator {
+		c.Comm.Type = "none"
+	}
+
+	// Reachability default: true when unset, except in agent mode where no
+	// public IP is needed (the agent is reached over the Cloud Console
+	// gateway, not the VM's network).
 	if c.UseElasticIP == nil {
-		c.useElasticIP = true
+		c.useElasticIP = !c.UseAgentCommunicator
 	} else {
 		c.useElasticIP = *c.UseElasticIP
 	}

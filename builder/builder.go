@@ -48,6 +48,7 @@ func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (pack
 	state.Put("ui", ui)
 
 	useSSH := b.config.Comm.Type == "ssh"
+	useAgent := b.config.UseAgentCommunicator
 
 	var steps []multistep.Step
 	steps = append(steps, &StepRegisterImage{})
@@ -56,8 +57,9 @@ func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (pack
 	// the create body) when the build needs one: either a bring-your-own
 	// ssh_authorized_key to register, or an ephemeral key to generate. Skipped
 	// when ssh_key_ids are supplied or the user provides a native
-	// ssh_private_key_file. See needsKeyRegistration.
-	if needsKeyRegistration(&b.config) {
+	// ssh_private_key_file. See needsKeyRegistration. Never registered in
+	// agent-communicator mode — there is no SSH.
+	if !useAgent && needsKeyRegistration(&b.config) {
 		steps = append(steps, &StepSSHKey{})
 	}
 
@@ -68,7 +70,16 @@ func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (pack
 		&StepResolveAddress{},
 	)
 
-	if useSSH {
+	switch {
+	case useAgent:
+		// Run provisioners through the in-guest xcloud-agent (root, no
+		// SSH). StepConnectAgent waits for the agent to be ready and puts
+		// an agent-backed communicator into the state bag.
+		steps = append(steps,
+			&StepConnectAgent{},
+			&commonsteps.StepProvision{},
+		)
+	case useSSH:
 		steps = append(steps,
 			&communicator.StepConnect{
 				Config: &b.config.Comm,

@@ -98,7 +98,8 @@ packer build example.pkr.hcl
 | `admin_username`     | string    | server-resolved  | SSH login user. At run time it is resolved from the server/image label, falling back to this value, then `admin`. Sets the SSH communicator username (use `ssh_username` to override). |
 | `ssh_key_ids`        | list      | —                | Existing (pre-registered) SSH key ids to attach. When empty, the plugin registers a key for the build (see `ssh_authorized_key` / ephemeral below). |
 | `ssh_authorized_key` | string    | —                | Bring-your-own OpenSSH **public** key (e.g. `ssh-ed25519 AAAA...`). Registered as a tenant key for the build, attached to the VM, then deleted on cleanup (unless `keep_vm`). No private key is generated — pair it with the native `ssh_private_key_file` so the communicator can authenticate. |
-| `use_elastic_ip`     | bool      | `true`           | Allocate a public IP for SSH; otherwise use the private address. |
+| `use_elastic_ip`     | bool      | `true`*          | Allocate a public IP for SSH; otherwise use the private address. *Defaults to `false` when `use_agent_communicator` is set. |
+| `use_agent_communicator` | bool  | `false`          | Run provisioners in-guest via the xcloud-agent instead of SSH (no SSH, no public IP, runs as root). Requires the tenant agent-exec entitlement. See [Agent communicator](#agent-communicator-no-ssh). |
 | `push_image`         | string    | —                | OCI reference to push the finished image to. |
 | `push_username`      | string    | —                | |
 | `push_password`      | string    | —                | |
@@ -107,7 +108,7 @@ packer build example.pkr.hcl
 | `keep_vm`            | bool      | `false`          | Skip teardown of the VM and temporary resources. |
 | `poll_interval`      | duration  | `5s`             | |
 | `state_timeout`      | duration  | `20m`            | |
-| `communicator`       | string    | `ssh`            | Only `ssh` or `none`. |
+| `communicator`       | string    | `ssh`            | Only `ssh` or `none`. Forced to `none` when `use_agent_communicator` is set. |
 
 ## How a build runs
 
@@ -152,3 +153,59 @@ source "xcloud" "macos" {
 The key is registered before the VM is created and torn down on completion
 (unless `keep_vm = true`). This is independent of `ssh_key_ids` (already
 pre-registered tenant keys) — set one or the other.
+
+## Agent communicator (no SSH)
+
+Set `use_agent_communicator = true` to run provisioners *inside* the VM through
+the in-guest **xcloud-agent** (over the Cloud Console agent exec/file API)
+instead of SSH. The `shell` and `file` provisioners work unchanged — Packer
+calls the agent-backed communicator rather than SSH.
+
+Because the agent runs as **root**:
+
+- **No SSH** — no port 22, no SSH key generated or registered, no
+  `ssh_private_key_file`. The communicator is forced to `none`.
+- **No public IP** — the agent is reached over the Cloud Console gateway, not
+  the VM's network, so `use_elastic_ip` defaults to `false`.
+- **No sudo** — provisioners already run as root, so there is no sudo-password
+  problem.
+
+```hcl
+source "xcloud" "macos" {
+  region_id = "<your-region-uuid>"
+  image     = "macos-tahoe-agent"
+
+  use_agent_communicator = true
+}
+
+build {
+  sources = ["source.xcloud.macos"]
+  provisioner "shell" {
+    inline = ["whoami", "sw_vers"]   # whoami -> root
+  }
+}
+```
+
+### Requirements
+
+- The Cloud Console API must expose the agent endpoints
+  `POST /v1/xcloud/instances/:id/agent/exec` and
+  `POST|GET /v1/xcloud/instances/:id/agent/files`.
+- The tenant must have the **agent-exec entitlement** enabled
+  (`tenants.xcloud_agent_exec_enabled = true`). Ask a platform operator to flip
+  it; until then the build fails fast with a `403 agent_exec_disabled` while
+  connecting the agent.
+
+### How it differs from the SSH flow
+
+After **Wait running**, instead of resolving an address and connecting over
+SSH, the plugin runs a **Connect agent** step that polls a cheap no-op exec
+until the agent reports ready (retrying while the API returns
+`409 agent_not_ready`, up to `state_timeout`), then provisions via the agent.
+
+### Limitations
+
+- `Download` of a single file is supported but **capped** (the API emulates it
+  via `cat`; large files return `413`). `DownloadDir` is **not supported** in
+  v1.
+- There is no interactive stdin; provisioners that expect a TTY won't work.

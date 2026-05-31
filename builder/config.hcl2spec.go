@@ -36,6 +36,7 @@ type FlatConfig struct {
 	SSHKeyIDs                 []string          `mapstructure:"ssh_key_ids" cty:"ssh_key_ids" hcl:"ssh_key_ids"`
 	SSHAuthorizedKey          *string           `mapstructure:"ssh_authorized_key" cty:"ssh_authorized_key" hcl:"ssh_authorized_key"`
 	UseElasticIP              *bool             `mapstructure:"use_elastic_ip" cty:"use_elastic_ip" hcl:"use_elastic_ip"`
+	UseAgentCommunicator      *bool             `mapstructure:"use_agent_communicator" cty:"use_agent_communicator" hcl:"use_agent_communicator"`
 	PushImage                 *string           `mapstructure:"push_image" cty:"push_image" hcl:"push_image"`
 	PushUsername              *string           `mapstructure:"push_username" cty:"push_username" hcl:"push_username"`
 	PushPassword              *string           `mapstructure:"push_password" cty:"push_password" hcl:"push_password"`
@@ -133,6 +134,7 @@ func (*FlatConfig) HCL2Spec() map[string]hcldec.Spec {
 		"ssh_key_ids":                  &hcldec.AttrSpec{Name: "ssh_key_ids", Type: cty.List(cty.String), Required: false},
 		"ssh_authorized_key":           &hcldec.AttrSpec{Name: "ssh_authorized_key", Type: cty.String, Required: false},
 		"use_elastic_ip":               &hcldec.AttrSpec{Name: "use_elastic_ip", Type: cty.Bool, Required: false},
+		"use_agent_communicator":       &hcldec.AttrSpec{Name: "use_agent_communicator", Type: cty.Bool, Required: false},
 		"push_image":                   &hcldec.AttrSpec{Name: "push_image", Type: cty.String, Required: false},
 		"push_username":                &hcldec.AttrSpec{Name: "push_username", Type: cty.String, Required: false},
 		"push_password":                &hcldec.AttrSpec{Name: "push_password", Type: cty.String, Required: false},
