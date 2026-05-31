@@ -34,6 +34,7 @@ type FlatConfig struct {
 	PullPrecache              *bool             `mapstructure:"pull_precache" cty:"pull_precache" hcl:"pull_precache"`
 	AdminUsername             *string           `mapstructure:"admin_username" cty:"admin_username" hcl:"admin_username"`
 	SSHKeyIDs                 []string          `mapstructure:"ssh_key_ids" cty:"ssh_key_ids" hcl:"ssh_key_ids"`
+	SSHAuthorizedKey          *string           `mapstructure:"ssh_authorized_key" cty:"ssh_authorized_key" hcl:"ssh_authorized_key"`
 	UseElasticIP              *bool             `mapstructure:"use_elastic_ip" cty:"use_elastic_ip" hcl:"use_elastic_ip"`
 	PushImage                 *string           `mapstructure:"push_image" cty:"push_image" hcl:"push_image"`
 	PushUsername              *string           `mapstructure:"push_username" cty:"push_username" hcl:"push_username"`
@@ -130,6 +131,7 @@ func (*FlatConfig) HCL2Spec() map[string]hcldec.Spec {
 		"pull_precache":                &hcldec.AttrSpec{Name: "pull_precache", Type: cty.Bool, Required: false},
 		"admin_username":               &hcldec.AttrSpec{Name: "admin_username", Type: cty.String, Required: false},
 		"ssh_key_ids":                  &hcldec.AttrSpec{Name: "ssh_key_ids", Type: cty.List(cty.String), Required: false},
+		"ssh_authorized_key":           &hcldec.AttrSpec{Name: "ssh_authorized_key", Type: cty.String, Required: false},
 		"use_elastic_ip":               &hcldec.AttrSpec{Name: "use_elastic_ip", Type: cty.Bool, Required: false},
 		"push_image":                   &hcldec.AttrSpec{Name: "push_image", Type: cty.String, Required: false},
 		"push_username":                &hcldec.AttrSpec{Name: "push_username", Type: cty.String, Required: false},

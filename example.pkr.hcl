@@ -40,6 +40,13 @@ source "xcloud" "macos" {
   # ephemeral keypair, registers it, and tears it down on completion.
   communicator = "ssh"
 
+  # Bring-your-own SSH key (optional). Register your own public key for the
+  # build and authenticate with the matching private key via Packer's native
+  # ssh_private_key_file. The registered key is deleted on cleanup. Leave both
+  # unset to use the auto-generated ephemeral key above.
+  # ssh_authorized_key   = file("~/.ssh/id_ed25519.pub")
+  # ssh_private_key_file = "~/.ssh/id_ed25519"
+
   # Push target: the provisioned VM is shut down and pushed here.
   push_image    = "ghcr.io/studio-ch/macos-built:latest"
   push_username = "studio-ch"

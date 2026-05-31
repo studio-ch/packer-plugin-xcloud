@@ -96,7 +96,8 @@ packer build example.pkr.hcl
 | `pull_credential_id` | string    | —                | Saved registry credential id (alternative to user/pass). |
 | `pull_precache`      | bool      | `false`          | |
 | `admin_username`     | string    | server-resolved  | SSH login user. At run time it is resolved from the server/image label, falling back to this value, then `admin`. Sets the SSH communicator username (use `ssh_username` to override). |
-| `ssh_key_ids`        | list      | —                | Existing SSH key ids. When empty, an ephemeral key is generated for the build. |
+| `ssh_key_ids`        | list      | —                | Existing (pre-registered) SSH key ids to attach. When empty, the plugin registers a key for the build (see `ssh_authorized_key` / ephemeral below). |
+| `ssh_authorized_key` | string    | —                | Bring-your-own OpenSSH **public** key (e.g. `ssh-ed25519 AAAA...`). Registered as a tenant key for the build, attached to the VM, then deleted on cleanup (unless `keep_vm`). No private key is generated — pair it with the native `ssh_private_key_file` so the communicator can authenticate. |
 | `use_elastic_ip`     | bool      | `true`           | Allocate a public IP for SSH; otherwise use the private address. |
 | `push_image`         | string    | —                | OCI reference to push the finished image to. |
 | `push_username`      | string    | —                | |
@@ -112,8 +113,11 @@ packer build example.pkr.hcl
 
 1. **Register image** — register `pull_image` as a temporary catalog image
    (skipped when `image` is used).
-2. **SSH key** — when `ssh_key_ids` is empty, an ephemeral ed25519 keypair is
-   generated and registered for the build.
+2. **SSH key** — when `ssh_key_ids` is empty the plugin registers a key for
+   the build. If `ssh_authorized_key` is set, that bring-your-own public key is
+   registered (pair it with the native `ssh_private_key_file`); otherwise, if
+   no native `ssh_private_key_file` was supplied, an ephemeral ed25519 keypair
+   is generated and registered. The registered key is deleted on cleanup.
 3. **Create network** — optional (off by default; uses `network`).
 4. **Create instance** — the builder VM is created and started.
 5. **Wait running** — poll until the VM is running and ready.
@@ -124,5 +128,27 @@ packer build example.pkr.hcl
    image (only when `push_image` is set).
 
 All resources created during the build (VM, elastic IP, temporary image and
-network, ephemeral SSH key) are cleaned up automatically unless `keep_vm` is
-set.
+network, the registered SSH key — whether ephemeral or a bring-your-own
+`ssh_authorized_key`) are cleaned up automatically unless `keep_vm` is set.
+
+## Bring your own SSH key
+
+Instead of letting the plugin generate an ephemeral keypair, you can register
+your own public key for the build and authenticate with the matching private
+key via Packer's native `ssh_private_key_file`:
+
+```hcl
+source "xcloud" "macos" {
+  region_id  = "<your-region-uuid>"
+  pull_image = "ghcr.io/your-org/macos-base:latest"
+
+  # Register this public key for the build (deleted again on cleanup).
+  ssh_authorized_key   = file("~/.ssh/id_ed25519.pub")
+  # Authenticate with the matching private key (Packer's native option).
+  ssh_private_key_file = "~/.ssh/id_ed25519"
+}
+```
+
+The key is registered before the VM is created and torn down on completion
+(unless `keep_vm = true`). This is independent of `ssh_key_ids` (already
+pre-registered tenant keys) — set one or the other.

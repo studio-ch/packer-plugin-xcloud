@@ -52,11 +52,12 @@ func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (pack
 	var steps []multistep.Step
 	steps = append(steps, &StepRegisterImage{})
 
-	// Generate + register an ephemeral SSH key when the template uses the
-	// ssh communicator without supplying any tenant ssh_key_ids. Runs
-	// before StepCreateInstance so the key id is included in the create
-	// body.
-	if useSSH && len(b.config.SSHKeyIDs) == 0 {
+	// Register an SSH key before StepCreateInstance (so its id is included in
+	// the create body) when the build needs one: either a bring-your-own
+	// ssh_authorized_key to register, or an ephemeral key to generate. Skipped
+	// when ssh_key_ids are supplied or the user provides a native
+	// ssh_private_key_file. See needsKeyRegistration.
+	if needsKeyRegistration(&b.config) {
 		steps = append(steps, &StepSSHKey{})
 	}
 

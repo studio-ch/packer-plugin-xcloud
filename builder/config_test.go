@@ -162,3 +162,139 @@ func TestPrepareRejectsWinRM(t *testing.T) {
 		t.Fatal("expected error for unsupported communicator, got nil")
 	}
 }
+
+func TestNeedsKeyRegistration(t *testing.T) {
+	const samplePubKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIabc comment"
+
+	tests := []struct {
+		name string
+		mut  func(c *Config)
+		want bool
+	}{
+		{
+			name: "ssh, nothing provided -> ephemeral",
+			mut:  func(c *Config) { c.Comm.Type = "ssh" },
+			want: true,
+		},
+		{
+			name: "ssh, ssh_authorized_key set -> register",
+			mut: func(c *Config) {
+				c.Comm.Type = "ssh"
+				c.SSHAuthorizedKey = samplePubKey
+			},
+			want: true,
+		},
+		{
+			name: "ssh, ssh_key_ids set -> skip",
+			mut: func(c *Config) {
+				c.Comm.Type = "ssh"
+				c.SSHKeyIDs = []string{"key-1"}
+			},
+			want: false,
+		},
+		{
+			name: "ssh, native ssh_private_key_file set -> skip",
+			mut: func(c *Config) {
+				c.Comm.Type = "ssh"
+				c.Comm.SSHPrivateKeyFile = "/tmp/id_ed25519"
+			},
+			want: false,
+		},
+		{
+			name: "ssh, authorized_key wins over native private key file -> register",
+			mut: func(c *Config) {
+				c.Comm.Type = "ssh"
+				c.SSHAuthorizedKey = samplePubKey
+				c.Comm.SSHPrivateKeyFile = "/tmp/id_ed25519"
+			},
+			want: true,
+		},
+		{
+			name: "ssh, ssh_key_ids set even with authorized_key -> skip",
+			mut: func(c *Config) {
+				c.Comm.Type = "ssh"
+				c.SSHKeyIDs = []string{"key-1"}
+				c.SSHAuthorizedKey = samplePubKey
+			},
+			want: false,
+		},
+		{
+			name: "non-ssh communicator -> skip",
+			mut:  func(c *Config) { c.Comm.Type = "none" },
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{}
+			tt.mut(cfg)
+			if got := needsKeyRegistration(cfg); got != tt.want {
+				t.Errorf("needsKeyRegistration() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestLooksLikeOpenSSHPublicKey(t *testing.T) {
+	valid := []string{
+		"ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIabc comment",
+		"ssh-rsa AAAAB3NzaC1yc2EAAAA...",
+		"  ecdsa-sha2-nistp256 AAAAE2Vj...",
+		"sk-ssh-ed25519@openssh.com AAAA...",
+	}
+	for _, s := range valid {
+		if !looksLikeOpenSSHPublicKey(s) {
+			t.Errorf("looksLikeOpenSSHPublicKey(%q) = false, want true", s)
+		}
+	}
+
+	invalid := []string{
+		"",
+		"-----BEGIN OPENSSH PRIVATE KEY-----",
+		"/home/me/.ssh/id_ed25519.pub",
+		"not a key",
+	}
+	for _, s := range invalid {
+		if looksLikeOpenSSHPublicKey(s) {
+			t.Errorf("looksLikeOpenSSHPublicKey(%q) = true, want false", s)
+		}
+	}
+}
+
+func TestPrepareAcceptsValidSSHAuthorizedKey(t *testing.T) {
+	cfg := baseConfig()
+	cfg.Comm = communicator.Config{Type: "ssh"}
+	cfg.SSHAuthorizedKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIabc packer@test"
+	if _, err := cfg.prepare(); err != nil {
+		t.Fatalf("prepare with valid ssh_authorized_key: %v", err)
+	}
+}
+
+func TestPrepareRejectsMalformedSSHAuthorizedKey(t *testing.T) {
+	cfg := baseConfig()
+	cfg.Comm = communicator.Config{Type: "ssh"}
+	cfg.SSHAuthorizedKey = "-----BEGIN OPENSSH PRIVATE KEY-----"
+	if _, err := cfg.prepare(); err == nil {
+		t.Fatal("expected error for malformed ssh_authorized_key, got nil")
+	}
+}
+
+func TestDecodeSSHAuthorizedKey(t *testing.T) {
+	const pub = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIabc packer@test"
+	cfg := &Config{}
+	raw := map[string]interface{}{
+		"api_endpoint":       "https://api.example.test",
+		"api_token":          "tok",
+		"region_id":          testRegionID,
+		"image":              "macos-sequoia",
+		"communicator":       "ssh",
+		"ssh_authorized_key": pub,
+	}
+	if err := cfg.decode(raw); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if cfg.SSHAuthorizedKey != pub {
+		t.Errorf("SSHAuthorizedKey = %q, want %q", cfg.SSHAuthorizedKey, pub)
+	}
+}

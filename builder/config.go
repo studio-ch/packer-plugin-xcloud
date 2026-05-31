@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -49,6 +50,19 @@ type Config struct {
 	// Access.
 	AdminUsername string   `mapstructure:"admin_username"`
 	SSHKeyIDs     []string `mapstructure:"ssh_key_ids"`
+
+	// Bring-your-own SSH public key. When set, the raw OpenSSH public key is
+	// registered as a tenant key for the duration of the build and attached
+	// to the instance (then deleted on cleanup unless keep_vm). No private
+	// key is generated or wired — pair it with the native ssh_private_key_file
+	// so the communicator can authenticate. Mutually independent from
+	// ssh_key_ids (pre-registered keys) and the auto-generated ephemeral key.
+	//
+	// NOTE: the template attribute is "ssh_authorized_key", not
+	// "ssh_public_key": the squashed communicator.Config already reserves the
+	// "ssh_public_key" mapstructure tag for an internal field, so reusing it
+	// collides at code-generation time.
+	SSHAuthorizedKey string `mapstructure:"ssh_authorized_key"`
 
 	// Reachability. When UseElasticIP is unset it defaults to true: the
 	// builder allocates an elastic IP on create and SSHes to it. Set to
@@ -186,6 +200,13 @@ func (c *Config) prepare() ([]string, error) {
 		errs = append(errs, fmt.Errorf("only 'ssh' and 'none' communicators are supported, got %q", c.Comm.Type))
 	}
 
+	// Lenient sanity check for a bring-your-own public key. The API validates
+	// authoritatively; this only catches obvious mistakes (e.g. a private key
+	// or a file path pasted in by accident).
+	if c.SSHAuthorizedKey != "" && !looksLikeOpenSSHPublicKey(c.SSHAuthorizedKey) {
+		errs = append(errs, errors.New("'ssh_authorized_key' does not look like an OpenSSH public key (expected a line starting with e.g. 'ssh-ed25519', 'ssh-rsa', 'ecdsa-...' or 'sk-...')"))
+	}
+
 	commErrs := c.Comm.Prepare(&c.ctx)
 	errs = append(errs, commErrs...)
 
@@ -193,6 +214,41 @@ func (c *Config) prepare() ([]string, error) {
 		return nil, errors.Join(errs...)
 	}
 	return nil, nil
+}
+
+// needsKeyRegistration reports whether the build should register an SSH key
+// (StepSSHKey) before creating the instance. It is a small pure function so it
+// can be unit-tested. The decision: only when the ssh communicator is used and
+// no pre-registered ssh_key_ids were supplied; then register when either a
+// bring-your-own ssh_authorized_key is set, or nothing else (no native
+// ssh_private_key_file) is provided — in which case an ephemeral key is
+// generated. When a native ssh_private_key_file is supplied (and no
+// ssh_authorized_key), key registration is skipped: the user manages the key
+// material themselves.
+func needsKeyRegistration(c *Config) bool {
+	if c.Comm.Type != "ssh" {
+		return false
+	}
+	if len(c.SSHKeyIDs) > 0 {
+		return false
+	}
+	if c.SSHAuthorizedKey != "" {
+		return true
+	}
+	return c.Comm.SSHPrivateKeyFile == ""
+}
+
+// looksLikeOpenSSHPublicKey is a permissive check that s resembles a single
+// OpenSSH public key line (e.g. "ssh-ed25519 AAAA... comment"). It only guards
+// against obvious mistakes; the API validates authoritatively.
+func looksLikeOpenSSHPublicKey(s string) bool {
+	s = strings.TrimSpace(s)
+	for _, prefix := range []string{"ssh-", "ecdsa-", "sk-"} {
+		if strings.HasPrefix(s, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *Config) decode(raws ...any) error {
