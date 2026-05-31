@@ -9,13 +9,19 @@ import (
 
 const testRegionID = "11111111-1111-1111-1111-111111111111"
 
+func boolPtr(b bool) *bool { return &b }
+
+// baseConfig returns a minimal SSH-path config. use_agent_communicator is
+// explicitly disabled so the SSH-oriented assertions hold regardless of the
+// (now true) default; agent-mode tests construct their own config.
 func baseConfig() *Config {
 	return &Config{
-		APIEndpoint: "https://api.example.test",
-		APIToken:    "tok",
-		RegionID:    testRegionID,
-		Image:       "macos-sequoia",
-		Comm:        communicator.Config{Type: "none"},
+		APIEndpoint:          "https://api.example.test",
+		APIToken:             "tok",
+		RegionID:             testRegionID,
+		Image:                "macos-sequoia",
+		Comm:                 communicator.Config{Type: "none"},
+		UseAgentCommunicator: boolPtr(false),
 	}
 }
 
@@ -66,18 +72,48 @@ func TestPrepareUseElasticIPExplicitFalse(t *testing.T) {
 	}
 }
 
-func TestPrepareAgentCommunicatorMode(t *testing.T) {
+func TestPrepareAgentCommunicatorDefaultsOn(t *testing.T) {
+	// use_agent_communicator unset (nil pointer) must default to true: the
+	// agent path is forced even though no communicator block is supplied.
+	cfg := &Config{
+		APIEndpoint: "https://api.example.test",
+		APIToken:    "tok",
+		RegionID:    testRegionID,
+		Image:       "macos-tahoe-agent",
+		// UseAgentCommunicator deliberately left nil → default true.
+	}
+	if _, err := cfg.prepare(); err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	if !cfg.useAgentCommunicator {
+		t.Error("useAgentCommunicator = false, want true (nil default)")
+	}
+	if cfg.Comm.Type != "none" {
+		t.Errorf("Comm.Type = %q, want \"none\" in default agent mode", cfg.Comm.Type)
+	}
+	if cfg.useElasticIP {
+		t.Error("useElasticIP = true, want false (agent mode default)")
+	}
+	if needsKeyRegistration(cfg) {
+		t.Error("needsKeyRegistration = true, want false in agent mode")
+	}
+}
+
+func TestPrepareAgentCommunicatorExplicitTrue(t *testing.T) {
 	cfg := &Config{
 		APIEndpoint:          "https://api.example.test",
 		APIToken:             "tok",
 		RegionID:             testRegionID,
 		Image:                "macos-tahoe-agent",
-		UseAgentCommunicator: true,
+		UseAgentCommunicator: boolPtr(true),
 		// Deliberately leave Comm unset: agent mode must force "none"
 		// and skip SSH validation without an explicit communicator block.
 	}
 	if _, err := cfg.prepare(); err != nil {
 		t.Fatalf("prepare: %v", err)
+	}
+	if !cfg.useAgentCommunicator {
+		t.Error("useAgentCommunicator = false, want true (explicit true)")
 	}
 	if cfg.Comm.Type != "none" {
 		t.Errorf("Comm.Type = %q, want \"none\" in agent mode", cfg.Comm.Type)
@@ -85,10 +121,35 @@ func TestPrepareAgentCommunicatorMode(t *testing.T) {
 	if cfg.useElasticIP {
 		t.Error("useElasticIP = true, want false (agent mode default)")
 	}
-	if !needsKeyRegistration(cfg) {
-		// agent mode forces comm type none → no key registration.
-	} else {
+	if needsKeyRegistration(cfg) {
 		t.Error("needsKeyRegistration = true, want false in agent mode")
+	}
+}
+
+func TestPrepareAgentCommunicatorExplicitFalseUsesSSH(t *testing.T) {
+	// use_agent_communicator = false → SSH path: communicator defaults to
+	// "ssh", elastic IP defaults to true, and an ephemeral key is registered.
+	cfg := &Config{
+		APIEndpoint:          "https://api.example.test",
+		APIToken:             "tok",
+		RegionID:             testRegionID,
+		Image:                "macos-sequoia",
+		UseAgentCommunicator: boolPtr(false),
+	}
+	if _, err := cfg.prepare(); err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	if cfg.useAgentCommunicator {
+		t.Error("useAgentCommunicator = true, want false (explicit false)")
+	}
+	if cfg.Comm.Type != "ssh" {
+		t.Errorf("Comm.Type = %q, want \"ssh\" (SSH path)", cfg.Comm.Type)
+	}
+	if !cfg.useElasticIP {
+		t.Error("useElasticIP = false, want true (SSH path default)")
+	}
+	if !needsKeyRegistration(cfg) {
+		t.Error("needsKeyRegistration = false, want true (SSH path, ephemeral key)")
 	}
 }
 
@@ -98,10 +159,9 @@ func TestPrepareAgentModeRespectsExplicitElasticIP(t *testing.T) {
 		APIToken:             "tok",
 		RegionID:             testRegionID,
 		Image:                "macos-tahoe-agent",
-		UseAgentCommunicator: true,
+		UseAgentCommunicator: boolPtr(true),
 	}
-	tru := true
-	cfg.UseElasticIP = &tru
+	cfg.UseElasticIP = boolPtr(true)
 	if _, err := cfg.prepare(); err != nil {
 		t.Fatalf("prepare: %v", err)
 	}

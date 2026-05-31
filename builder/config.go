@@ -74,11 +74,14 @@ type Config struct {
 	// SSH. Because the agent runs as root there is no SSH-reachability
 	// requirement, no public IP, no SSH key and no sudo password. It
 	// requires the tenant to have the agent-exec entitlement enabled on the
-	// Cloud Console. When true the builder forces comm type "none",
+	// Cloud Console. When enabled the builder forces comm type "none",
 	// defaults use_elastic_ip to false, and skips StepSSHKey +
-	// communicator.StepConnect in favour of StepConnectAgent. SSH remains
-	// the default when this is unset.
-	UseAgentCommunicator bool `mapstructure:"use_agent_communicator"`
+	// communicator.StepConnect in favour of StepConnectAgent.
+	//
+	// Defaults to true when unset: set use_agent_communicator = false to
+	// opt back into the SSH path. A nil pointer (unset) is treated as true;
+	// the resolved value lands in useAgentCommunicator during prepare().
+	UseAgentCommunicator *bool `mapstructure:"use_agent_communicator"`
 
 	// Optional push target. When set, the builder shuts the VM down after
 	// provisioning and pushes it as an OCI image to PushImage.
@@ -103,10 +106,11 @@ type Config struct {
 	ctx interpolate.Context
 
 	// Resolved, unexported values.
-	useElasticIP  bool
-	pollInterval  time.Duration
-	stateTimeout  time.Duration
-	createNetwork bool
+	useAgentCommunicator bool
+	useElasticIP         bool
+	pollInterval         time.Duration
+	stateTimeout         time.Duration
+	createNetwork        bool
 }
 
 func (c *Config) prepare() ([]string, error) {
@@ -137,11 +141,21 @@ func (c *Config) prepare() ([]string, error) {
 		c.Network = "default"
 	}
 
+	// Agent communicator default: true when unset (nil pointer). Provisioners
+	// then run in-guest via the xcloud-agent rather than SSH. Set
+	// use_agent_communicator = false to opt back into the SSH path. Mirror of
+	// the UseElasticIP *bool resolution below.
+	if c.UseAgentCommunicator == nil {
+		c.useAgentCommunicator = true
+	} else {
+		c.useAgentCommunicator = *c.UseAgentCommunicator
+	}
+
 	// Agent communicator mode: provisioners run in-guest via the
 	// xcloud-agent, not SSH. Force comm type "none" so the SSH
 	// communicator validation is skipped (no key / username required) and
 	// no StepConnect SSH dial is attempted.
-	if c.UseAgentCommunicator {
+	if c.useAgentCommunicator {
 		c.Comm.Type = "none"
 	}
 
@@ -149,7 +163,7 @@ func (c *Config) prepare() ([]string, error) {
 	// public IP is needed (the agent is reached over the Cloud Console
 	// gateway, not the VM's network).
 	if c.UseElasticIP == nil {
-		c.useElasticIP = !c.UseAgentCommunicator
+		c.useElasticIP = !c.useAgentCommunicator
 	} else {
 		c.useElasticIP = *c.UseElasticIP
 	}

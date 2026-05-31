@@ -48,7 +48,7 @@ func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (pack
 	state.Put("ui", ui)
 
 	useSSH := b.config.Comm.Type == "ssh"
-	useAgent := b.config.UseAgentCommunicator
+	useAgent := b.config.useAgentCommunicator
 
 	var steps []multistep.Step
 	steps = append(steps, &StepRegisterImage{})

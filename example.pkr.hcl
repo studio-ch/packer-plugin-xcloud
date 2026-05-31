@@ -1,7 +1,7 @@
 packer {
   required_plugins {
     xcloud = {
-      version = ">= 0.1.0"
+      version = ">= 0.3.1"
       # Packer strips the "packer-plugin-" repo prefix from source addresses,
       # so this installs from github.com/studio-ch/packer-plugin-xcloud.
       source = "github.com/studio-ch/xcloud"
@@ -9,11 +9,14 @@ packer {
   }
 }
 
-# Minimal macOS build:
+# Minimal macOS build over SSH:
 #   1. pull a base OCI image into the tenant catalog (temporary)
 #   2. boot a builder VM and reach it over SSH
 #   3. run a provisioner
 #   4. shut down and push the result as a new OCI image
+#
+# NOTE: since v0.3.1 use_agent_communicator DEFAULTS TO TRUE, so this
+# SSH-oriented source sets it to false explicitly. See the agent variant below.
 #
 # api_endpoint / api_token fall back to the CLOUD_CONSOLE_API_ENDPOINT and
 # CLOUD_CONSOLE_API_TOKEN environment variables when omitted.
@@ -32,6 +35,9 @@ source "xcloud" "macos" {
   # Base image: pull a public OCI reference. Use `image = "<catalog-name>"`
   # instead to build from an existing catalog entry.
   pull_image = "ghcr.io/studio-ch/macos-sequoia:latest"
+
+  # Opt back into the SSH path (the default is the agent communicator).
+  use_agent_communicator = false
 
   # Reachability: allocate a public elastic IP for SSH (default true).
   use_elastic_ip = true
@@ -66,16 +72,17 @@ build {
 }
 
 # ---------------------------------------------------------------------------
-# Agent communicator variant (no SSH).
+# Agent communicator variant (no SSH) — this is now the DEFAULT.
 #
-# `use_agent_communicator = true` runs provisioners *inside* the VM through the
-# in-guest xcloud-agent (over the Cloud Console agent exec/file API) instead of
-# SSH. Because the agent runs as root:
+# Since v0.3.1 use_agent_communicator defaults to true, so it does not need to
+# be set explicitly. It runs provisioners *inside* the VM through the in-guest
+# xcloud-agent (over the Cloud Console agent exec/file API) instead of SSH.
+# Because the agent runs as root:
 #   * no SSH reachability is required (no public/elastic IP, no port 22),
 #   * no SSH key is generated or registered,
 #   * provisioners run as root — no `sudo` and no sudo password.
 #
-# Requirements:
+# Requirements (the default path depends on these):
 #   * the Cloud Console API exposes /v1/xcloud/instances/:id/agent/exec + /files
 #   * the tenant has the agent-exec entitlement enabled
 #     (tenants.xcloud_agent_exec_enabled = true) — ask an operator.
@@ -97,7 +104,8 @@ source "xcloud" "macos_agent" {
 
   image = "macos-tahoe-agent"
 
-  # Run provisioners via the in-guest agent (root, no SSH, no public IP).
+  # use_agent_communicator defaults to true — provisioners run via the in-guest
+  # agent (root, no SSH, no public IP). Shown here for clarity; it can be omitted.
   use_agent_communicator = true
 }
 

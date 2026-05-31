@@ -6,9 +6,16 @@ images — pre-installed tools, Xcode versions, CI runners, certificates — and
 publish them straight into your Cloud Console image catalog.
 
 The plugin talks to the public Cloud Console API with your API key: it
-provisions a builder VM, connects over SSH, runs your provisioners, shuts the
-VM down, and pushes the result as a reusable OCI image. No VPN, certificates,
-or low-level cluster access required.
+provisions a builder VM, runs your provisioners, shuts the VM down, and pushes
+the result as a reusable OCI image. No VPN, certificates, or low-level cluster
+access required.
+
+> **Default since v0.3.1:** provisioners run **in-guest via the xcloud-agent**
+> (`use_agent_communicator` defaults to `true`) — no SSH, no public IP, runs as
+> root. This requires the Cloud Console agent-exec API and the tenant's
+> `xcloud_agent_exec_enabled` entitlement. Set `use_agent_communicator = false`
+> to use the classic SSH path instead. See
+> [Agent communicator](#agent-communicator-no-ssh).
 
 ## Install
 
@@ -98,8 +105,8 @@ packer build example.pkr.hcl
 | `admin_username`     | string    | server-resolved  | SSH login user. At run time it is resolved from the server/image label, falling back to this value, then `admin`. Sets the SSH communicator username (use `ssh_username` to override). |
 | `ssh_key_ids`        | list      | —                | Existing (pre-registered) SSH key ids to attach. When empty, the plugin registers a key for the build (see `ssh_authorized_key` / ephemeral below). |
 | `ssh_authorized_key` | string    | —                | Bring-your-own OpenSSH **public** key (e.g. `ssh-ed25519 AAAA...`). Registered as a tenant key for the build, attached to the VM, then deleted on cleanup (unless `keep_vm`). No private key is generated — pair it with the native `ssh_private_key_file` so the communicator can authenticate. |
-| `use_elastic_ip`     | bool      | `true`*          | Allocate a public IP for SSH; otherwise use the private address. *Defaults to `false` when `use_agent_communicator` is set. |
-| `use_agent_communicator` | bool  | `false`          | Run provisioners in-guest via the xcloud-agent instead of SSH (no SSH, no public IP, runs as root). Requires the tenant agent-exec entitlement. See [Agent communicator](#agent-communicator-no-ssh). |
+| `use_elastic_ip`     | bool      | `true`*          | Allocate a public IP for SSH; otherwise use the private address. *Defaults to `false` when `use_agent_communicator` is on (the default). |
+| `use_agent_communicator` | bool  | `true`           | Run provisioners in-guest via the xcloud-agent instead of SSH (no SSH, no public IP, runs as root). **Defaults to true** — requires the Cloud Console agent-exec API and the tenant `xcloud_agent_exec_enabled` entitlement. Set to `false` for the SSH path. See [Agent communicator](#agent-communicator-no-ssh). |
 | `push_image`         | string    | —                | OCI reference to push the finished image to. |
 | `push_username`      | string    | —                | |
 | `push_password`      | string    | —                | |
@@ -108,9 +115,13 @@ packer build example.pkr.hcl
 | `keep_vm`            | bool      | `false`          | Skip teardown of the VM and temporary resources. |
 | `poll_interval`      | duration  | `5s`             | |
 | `state_timeout`      | duration  | `20m`            | |
-| `communicator`       | string    | `ssh`            | Only `ssh` or `none`. Forced to `none` when `use_agent_communicator` is set. |
+| `communicator`       | string    | `none`*          | Only `ssh` or `none`. Forced to `none` when `use_agent_communicator` is on (the default). *Defaults to `ssh` when `use_agent_communicator = false`. |
 
 ## How a build runs
+
+The steps below describe the **SSH path** (`use_agent_communicator = false`).
+With the default agent communicator, steps 2 and 6–7 differ — see
+[Agent communicator](#agent-communicator-no-ssh).
 
 1. **Register image** — register `pull_image` as a temporary catalog image
    (skipped when `image` is used).
@@ -156,10 +167,15 @@ pre-registered tenant keys) — set one or the other.
 
 ## Agent communicator (no SSH)
 
-Set `use_agent_communicator = true` to run provisioners *inside* the VM through
+This is the **default** (since v0.3.1): provisioners run *inside* the VM through
 the in-guest **xcloud-agent** (over the Cloud Console agent exec/file API)
 instead of SSH. The `shell` and `file` provisioners work unchanged — Packer
-calls the agent-backed communicator rather than SSH.
+calls the agent-backed communicator rather than SSH. Because it is the default,
+`use_agent_communicator = true` does not need to be set explicitly; set
+`use_agent_communicator = false` to opt back into SSH.
+
+See [`examples/macos-clt-agent`](./examples/macos-clt-agent) for a complete
+example that installs the Xcode Command Line Tools headless through the agent.
 
 Because the agent runs as **root**:
 
