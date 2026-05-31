@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install-clt.sh — installiert Xcode Command Line Tools headless.
+# install-clt.sh — installs the Xcode Command Line Tools headlessly.
 set -euo pipefail
 
 PLACEHOLDER="/tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress"
