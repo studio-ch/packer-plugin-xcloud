@@ -256,6 +256,57 @@ func (c *Client) DeleteImage(ctx context.Context, regionID, name string) error {
 	return c.doJSON(ctx, http.MethodDelete, path, nil, nil)
 }
 
+// ListImages lists the images visible to the tenant. Each carries the region
+// id + slug, which is what ResolveRegionID uses to map a slug to a UUID.
+func (c *Client) ListImages(ctx context.Context) ([]Image, error) {
+	var out struct {
+		Data []Image `json:"data"`
+	}
+	if err := c.doJSON(ctx, http.MethodGet, "/xcloud/images", nil, &out); err != nil {
+		return nil, err
+	}
+	return out.Data, nil
+}
+
+// ResolveRegionID maps a region slug (e.g. "BIT1") to its region UUID by
+// reading the region id/slug pairs exposed on the tenant images listing
+// (GET /v1/xcloud/images). The match is case-insensitive. When the slug is not
+// found it returns an error listing the slugs that are available to the tenant.
+func (c *Client) ResolveRegionID(ctx context.Context, slug string) (string, error) {
+	want := strings.ToLower(strings.TrimSpace(slug))
+	if want == "" {
+		return "", errors.New("region slug is empty")
+	}
+
+	images, err := c.ListImages(ctx)
+	if err != nil {
+		return "", fmt.Errorf("could not list images to resolve region %q: %w", slug, err)
+	}
+
+	// Distinct slug -> id pairs, preserving first-seen order for a stable
+	// "available regions" message.
+	seen := make(map[string]string)
+	var available []string
+	for _, img := range images {
+		if img.RegionSlug == "" || img.RegionID == "" {
+			continue
+		}
+		key := strings.ToLower(img.RegionSlug)
+		if _, ok := seen[key]; !ok {
+			seen[key] = img.RegionID
+			available = append(available, img.RegionSlug)
+		}
+		if key == want {
+			return img.RegionID, nil
+		}
+	}
+
+	if len(available) == 0 {
+		return "", fmt.Errorf("could not resolve region %q: no regions are visible to this API key", slug)
+	}
+	return "", fmt.Errorf("could not resolve region %q: available regions are %s", slug, strings.Join(available, ", "))
+}
+
 /* ============================ Instances ============================ */
 
 // CreateInstanceRequest is the body for POST /v1/xcloud/instances.

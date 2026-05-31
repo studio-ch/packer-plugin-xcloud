@@ -1,7 +1,7 @@
 packer {
   required_plugins {
     xcloud = {
-      version = ">= 0.3.1"
+      version = ">= 0.3.3"
       # Packer strips the "packer-plugin-" repo prefix from source addresses,
       # so this installs from github.com/studio-ch/packer-plugin-xcloud.
       source = "github.com/studio-ch/xcloud"
@@ -25,8 +25,10 @@ source "xcloud" "macos" {
   api_endpoint = "https://<your-cloud-console-host>"
   # api_token  = "..."   # prefer CLOUD_CONSOLE_API_TOKEN
 
-  region_id = "00000000-0000-0000-0000-000000000000"
-  name      = "packer-macos"
+  # Friendly region slug, resolved to the UUID at build time. Use exactly one
+  # of `region` (slug) or `region_id` (UUID).
+  region = "BIT1"
+  name   = "packer-macos"
 
   cpu_cores = 4
   memory    = 8
@@ -95,8 +97,8 @@ source "xcloud" "macos_agent" {
   api_endpoint = "https://<your-cloud-console-host>"
   # api_token  = "..."   # prefer CLOUD_CONSOLE_API_TOKEN
 
-  region_id = "00000000-0000-0000-0000-000000000000"
-  name      = "packer-macos-agent"
+  region = "BIT1" # or region_id = "<uuid>"
+  name   = "packer-macos-agent"
 
   cpu_cores = 4
   memory    = 8

@@ -27,7 +27,11 @@ type Config struct {
 	APIEndpoint string `mapstructure:"api_endpoint"`
 	APIToken    string `mapstructure:"api_token"`
 
-	// Instance identity.
+	// Instance identity. Exactly one of Region (a friendly region slug, e.g.
+	// "BIT1", resolved to the UUID at build time) or RegionID (the region
+	// UUID) must be set. Region is resolved by StepResolveRegion before any
+	// region-scoped API call; the resolved UUID is written back into RegionID.
+	Region   string `mapstructure:"region"`
 	RegionID string `mapstructure:"region_id"`
 	Name     string `mapstructure:"name"`
 
@@ -216,10 +220,17 @@ func (c *Config) prepare() ([]string, error) {
 	if c.APIEndpoint == "" {
 		errs = append(errs, errors.New("'api_endpoint' is required (or set CLOUD_CONSOLE_API_ENDPOINT)"))
 	}
-	if c.RegionID == "" {
-		errs = append(errs, errors.New("'region_id' is required"))
-	} else if _, err := uuid.Parse(c.RegionID); err != nil {
-		errs = append(errs, fmt.Errorf("'region_id' must be a UUID: %w", err))
+	// Exactly one of region (a slug resolved to a UUID at build time) or
+	// region_id (the UUID itself). region_id, when set, must be a UUID.
+	switch {
+	case c.Region != "" && c.RegionID != "":
+		errs = append(errs, errors.New("only one of 'region' or 'region_id' can be used"))
+	case c.Region == "" && c.RegionID == "":
+		errs = append(errs, errors.New("one of 'region' (slug, e.g. \"BIT1\") or 'region_id' (UUID) is required"))
+	case c.RegionID != "":
+		if _, err := uuid.Parse(c.RegionID); err != nil {
+			errs = append(errs, fmt.Errorf("'region_id' must be a UUID: %w", err))
+		}
 	}
 
 	// Exactly one base image source.

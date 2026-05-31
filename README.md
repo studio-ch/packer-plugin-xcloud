@@ -64,7 +64,7 @@ short version:
 
 ```hcl
 source "xcloud" "macos" {
-  region_id  = "<your-region-uuid>"
+  region     = "BIT1"                                # friendly slug; or region_id = "<uuid>"
   pull_image = "ghcr.io/your-org/macos-base:latest"  # base to build from
   push_image = "ghcr.io/your-org/macos-built:latest" # where the result lands
 }
@@ -90,7 +90,8 @@ packer build example.pkr.hcl
 | -------------------- | --------- | ---------------- | ----- |
 | `api_endpoint`       | string    | — (required)     | Cloud Console API host, with or without scheme. |
 | `api_token`          | string    | — (required)     | Your API key. |
-| `region_id`          | string    | — (required)     | Region UUID. |
+| `region`             | string    | — (required*)    | Friendly region slug (e.g. `BIT1`), resolved to the region UUID at build time. *Exactly one of `region` or `region_id` is required. |
+| `region_id`          | string    | — (required*)    | Region UUID. *Exactly one of `region` or `region_id` is required (the UUID alternative to `region`). |
 | `name`               | string    | `packer-<8hex>`  | Builder VM name. |
 | `cpu_cores`          | int       | `4`              | |
 | `memory`             | int       | `8`              | GiB. |
@@ -151,7 +152,7 @@ key via Packer's native `ssh_private_key_file`:
 
 ```hcl
 source "xcloud" "macos" {
-  region_id  = "<your-region-uuid>"
+  region     = "BIT1" # or region_id = "<uuid>"
   pull_image = "ghcr.io/your-org/macos-base:latest"
 
   # Register this public key for the build (deleted again on cleanup).
@@ -188,8 +189,8 @@ Because the agent runs as **root**:
 
 ```hcl
 source "xcloud" "macos" {
-  region_id = "<your-region-uuid>"
-  image     = "macos-tahoe-agent"
+  region = "BIT1" # or region_id = "<uuid>"
+  image  = "macos-tahoe-agent"
 
   use_agent_communicator = true
 }

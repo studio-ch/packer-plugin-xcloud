@@ -203,7 +203,45 @@ func TestPrepareMissingRegionID(t *testing.T) {
 	cfg := baseConfig()
 	cfg.RegionID = ""
 	if _, err := cfg.prepare(); err == nil {
-		t.Fatal("expected error for missing region_id, got nil")
+		t.Fatal("expected error when neither region nor region_id set, got nil")
+	}
+}
+
+func TestPrepareAcceptsRegionSlug(t *testing.T) {
+	cfg := baseConfig()
+	cfg.RegionID = ""
+	cfg.Region = "BIT1"
+	if _, err := cfg.prepare(); err != nil {
+		t.Fatalf("prepare with region slug: %v", err)
+	}
+	// region is resolved at build time, not in prepare(): RegionID stays empty.
+	if cfg.RegionID != "" {
+		t.Errorf("RegionID = %q, want empty (resolved at build time, not in prepare)", cfg.RegionID)
+	}
+}
+
+func TestPrepareRejectsBothRegionAndRegionID(t *testing.T) {
+	cfg := baseConfig() // RegionID already set
+	cfg.Region = "BIT1"
+	if _, err := cfg.prepare(); err == nil {
+		t.Fatal("expected error when both region and region_id set, got nil")
+	}
+}
+
+func TestPrepareRejectsNeitherRegion(t *testing.T) {
+	cfg := baseConfig()
+	cfg.RegionID = ""
+	cfg.Region = ""
+	if _, err := cfg.prepare(); err == nil {
+		t.Fatal("expected error when neither region nor region_id set, got nil")
+	}
+}
+
+func TestPrepareRejectsNonUUIDRegionID(t *testing.T) {
+	cfg := baseConfig()
+	cfg.RegionID = "not-a-uuid"
+	if _, err := cfg.prepare(); err == nil {
+		t.Fatal("expected error for non-UUID region_id, got nil")
 	}
 }
 

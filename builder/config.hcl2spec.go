@@ -20,6 +20,7 @@ type FlatConfig struct {
 	PackerSensitiveVars       []string          `mapstructure:"packer_sensitive_variables" cty:"packer_sensitive_variables" hcl:"packer_sensitive_variables"`
 	APIEndpoint               *string           `mapstructure:"api_endpoint" cty:"api_endpoint" hcl:"api_endpoint"`
 	APIToken                  *string           `mapstructure:"api_token" cty:"api_token" hcl:"api_token"`
+	Region                    *string           `mapstructure:"region" cty:"region" hcl:"region"`
 	RegionID                  *string           `mapstructure:"region_id" cty:"region_id" hcl:"region_id"`
 	Name                      *string           `mapstructure:"name" cty:"name" hcl:"name"`
 	CPUCores                  *int              `mapstructure:"cpu_cores" cty:"cpu_cores" hcl:"cpu_cores"`
@@ -118,6 +119,7 @@ func (*FlatConfig) HCL2Spec() map[string]hcldec.Spec {
 		"packer_sensitive_variables":   &hcldec.AttrSpec{Name: "packer_sensitive_variables", Type: cty.List(cty.String), Required: false},
 		"api_endpoint":                 &hcldec.AttrSpec{Name: "api_endpoint", Type: cty.String, Required: false},
 		"api_token":                    &hcldec.AttrSpec{Name: "api_token", Type: cty.String, Required: false},
+		"region":                       &hcldec.AttrSpec{Name: "region", Type: cty.String, Required: false},
 		"region_id":                    &hcldec.AttrSpec{Name: "region_id", Type: cty.String, Required: false},
 		"name":                         &hcldec.AttrSpec{Name: "name", Type: cty.String, Required: false},
 		"cpu_cores":                    &hcldec.AttrSpec{Name: "cpu_cores", Type: cty.Number, Required: false},

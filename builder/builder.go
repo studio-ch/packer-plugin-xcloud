@@ -51,6 +51,10 @@ func (b *Builder) Run(ctx context.Context, ui packer.Ui, hook packer.Hook) (pack
 	useAgent := b.config.useAgentCommunicator
 
 	var steps []multistep.Step
+	// Resolve a region slug to its UUID first so every region-scoped step
+	// (and the artifact) sees the resolved cfg.RegionID. No-op when region_id
+	// was supplied directly.
+	steps = append(steps, &StepResolveRegion{})
 	steps = append(steps, &StepRegisterImage{})
 
 	// Register an SSH key before StepCreateInstance (so its id is included in
