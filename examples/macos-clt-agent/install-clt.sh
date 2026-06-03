@@ -12,7 +12,7 @@ CLT_LABEL="$(sudo softwareupdate -l \
     | sed 's/^ *//;s/ *$//' \
     | tail -n 1)"
 
-echo "Installiere: $CLT_LABEL"
+echo "Installing: $CLT_LABEL"
 sudo softwareupdate -i "$CLT_LABEL" --verbose --agree-to-license
 
 sudo xcode-select -s /Library/Developer/CommandLineTools
