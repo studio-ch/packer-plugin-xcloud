@@ -1,3 +1,26 @@
+# Environment (nothing secret in this file):
+#
+#   export CLOUD_CONSOLE_API_ENDPOINT="https://<your-cloud-console-host>"
+#   export CLOUD_CONSOLE_API_TOKEN="<tenant API key with write:resources>"
+#   export XCLOUD_PUSH_IMAGE="ghcr.io/<org>/<repo>:<tag>"
+#   export XCLOUD_PUSH_CREDENTIAL_ID="<saved registry credential UUID>"  # optional
+#
+# api_endpoint / api_token are read from CLOUD_CONSOLE_* by the plugin when
+# omitted from the source block. Push targets use Packer variables below so they
+# can also be overridden with -var on the command line.
+
+variable "push_image" {
+  type        = string
+  default     = env("XCLOUD_PUSH_IMAGE")
+  description = "OCI reference to push the finished image to. Leave empty to skip push."
+}
+
+variable "push_credential_id" {
+  type        = string
+  default     = env("XCLOUD_PUSH_CREDENTIAL_ID")
+  description = "UUID of a registry credential saved in Cloud Console (Integration -> Registries)."
+}
+
 packer {
   required_plugins {
     xcloud = {
@@ -17,9 +40,6 @@ packer {
 #
 # NOTE: since v0.3.1 use_agent_communicator DEFAULTS TO TRUE, so this
 # SSH-oriented source sets it to false explicitly. See the agent variant below.
-#
-# api_endpoint / api_token fall back to the CLOUD_CONSOLE_API_ENDPOINT and
-# CLOUD_CONSOLE_API_TOKEN environment variables when omitted.
 
 source "xcloud" "macos" {
   api_endpoint = "https://<your-cloud-console-host>"
@@ -56,10 +76,14 @@ source "xcloud" "macos" {
   # ssh_private_key_file = "~/.ssh/id_ed25519"
 
   # Push target: the provisioned VM is shut down and pushed here.
-  push_image    = "ghcr.io/studio-ch/macos-built:latest"
-  push_username = "studio-ch"
-  # push_password = "..."
-  push_precache = false
+  push_image         = var.push_image
+  push_credential_id = var.push_credential_id
+  state_timeout      = "2h"
+  push_precache      = false
+
+  # Ad-hoc registry creds instead of push_credential_id:
+  # push_username = "studio-ch"
+  # push_password = env("GHCR_PAT")
 }
 
 build {
@@ -109,6 +133,10 @@ source "xcloud" "macos_agent" {
   # use_agent_communicator defaults to true — provisioners run via the in-guest
   # agent (root, no SSH, no public IP). Shown here for clarity; it can be omitted.
   use_agent_communicator = true
+
+  push_image         = var.push_image
+  push_credential_id = var.push_credential_id
+  state_timeout      = "2h"
 }
 
 build {

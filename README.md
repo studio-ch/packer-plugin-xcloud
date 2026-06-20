@@ -63,10 +63,23 @@ See [`example.pkr.hcl`](./example.pkr.hcl) for a complete macOS build. The
 short version:
 
 ```hcl
+variable "push_image" {
+  type    = string
+  default = env("XCLOUD_PUSH_IMAGE")
+}
+
+variable "push_credential_id" {
+  type    = string
+  default = env("XCLOUD_PUSH_CREDENTIAL_ID")
+}
+
 source "xcloud" "macos" {
   region     = "<region>"                                # e.g. ZRH1, ALP2; or region_id = "<uuid>"
   pull_image = "ghcr.io/your-org/macos-base:latest"  # base to build from
-  push_image = "ghcr.io/your-org/macos-built:latest" # where the result lands
+
+  push_image         = var.push_image
+  push_credential_id = var.push_credential_id
+  state_timeout      = "2h"
 }
 
 build {
@@ -81,8 +94,38 @@ build {
 ```bash
 export CLOUD_CONSOLE_API_ENDPOINT="https://<your-cloud-console-host>"
 export CLOUD_CONSOLE_API_TOKEN="<your-api-key>"
+export XCLOUD_PUSH_IMAGE="ghcr.io/your-org/macos-built:latest"
+export XCLOUD_PUSH_CREDENTIAL_ID="<registry-credential-uuid>"  # optional
+
 packer build example.pkr.hcl
 ```
+
+## Image push
+
+When `push_image` is set, the builder shuts the VM down after provisioning and
+pushes the disk as an OCI image to your registry, then registers it in your
+tenant catalog. Image push requires plugin **>= 0.3.3**.
+
+Keep push targets out of the template by wiring them through environment
+variables (as in the quick start above):
+
+| Environment variable        | Maps to               | Notes |
+| --------------------------- | --------------------- | ----- |
+| `XCLOUD_PUSH_IMAGE`         | `push_image`          | OCI reference, e.g. `ghcr.io/acme/macos-built:latest` |
+| `XCLOUD_PUSH_CREDENTIAL_ID` | `push_credential_id`  | UUID from **Integration → Registries → Copy ID** |
+
+Credential precedence for the push:
+
+1. `push_credential_id` — saved registry credential (recommended)
+2. `push_username` + `push_password` — ad-hoc creds (e.g. a GHCR PAT via `env("GHCR_PAT")`)
+3. neither — anonymous push (public repos only)
+
+macOS images are large; set `state_timeout = "2h"` (or more) so the push step
+does not time out.
+
+See [`examples/macos-clt-agent`](./examples/macos-clt-agent) for a fuller
+agent-communicator build that installs the Xcode Command Line Tools and pushes
+the result.
 
 ## Configuration
 
@@ -115,7 +158,7 @@ packer build example.pkr.hcl
 | `push_precache`      | bool      | `false`          | Pre-pull the pushed image onto every node for faster first boot. |
 | `keep_vm`            | bool      | `false`          | Skip teardown of the VM and temporary resources. |
 | `poll_interval`      | duration  | `5s`             | |
-| `state_timeout`      | duration  | `20m`            | |
+| `state_timeout`      | duration  | `20m`            | Per-step timeout; use `2h`+ for macOS image pushes. |
 | `communicator`       | string    | `none`*          | Only `ssh` or `none`. Forced to `none` when `use_agent_communicator` is on (the default). *Defaults to `ssh` when `use_agent_communicator = false`. |
 
 ## How a build runs
