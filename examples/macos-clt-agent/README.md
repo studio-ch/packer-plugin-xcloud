@@ -75,6 +75,6 @@ The push picks the first auth method that is set:
 ## Notes
 
 - macOS images are large (tens of GB); the push can take many minutes.
-  `state_timeout` in the template bounds it — keep it generous (e.g. `60m`).
+  `state_timeout` in the template bounds it — keep it generous (e.g. `2h` for large macOS pushes).
 - `push_credential_id` must point at a credential for the **same registry host**
   as `push_image`, otherwise the registry rejects the auth.

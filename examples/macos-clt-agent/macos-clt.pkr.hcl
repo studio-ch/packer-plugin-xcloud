@@ -92,8 +92,8 @@ source "xcloud" "clt" {
   # ---- Timeouts -------------------------------------------------------------
   # state_timeout bounds each long-running step, INCLUDING the image push.
   # macOS images are large (tens of GB), so the push alone can take many
-  # minutes — give it generous headroom.
-  state_timeout = "60m"
+  # minutes — give it generous headroom (match worker PUSH_TIMEOUT_MS, 2h).
+  state_timeout = "2h"
 
   # ---- Image push (optional) ------------------------------------------------
   # After the provisioners finish, the builder stops the VM and pushes it as an
