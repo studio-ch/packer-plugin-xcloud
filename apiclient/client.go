@@ -268,7 +268,7 @@ func (c *Client) ListImages(ctx context.Context) ([]Image, error) {
 	return out.Data, nil
 }
 
-// ResolveRegionID maps a region slug (e.g. "BIT1") to its region UUID by
+// ResolveRegionID maps a region slug (e.g. "ZRH1") to its region UUID by
 // reading the region id/slug pairs exposed on the tenant images listing
 // (GET /v1/xcloud/images). The match is case-insensitive. When the slug is not
 // found it returns an error listing the slugs that are available to the tenant.

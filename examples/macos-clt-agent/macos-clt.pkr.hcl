@@ -75,7 +75,7 @@ source "xcloud" "clt" {
   #   api_token    = "sk_live_..."   # discouraged — prefer the env var
 
   # ---- Where + what to build ------------------------------------------------
-  region = "BIT1"              # friendly region slug; or use region_id = "<uuid>"
+  region = "<region>"        # e.g. ZRH1, ALP2; or use region_id = "<uuid>"
   image  = "macos-tahoe-agent" # a base image that ships the xcloud agent
 
   # Optional instance sizing (defaults shown). Bigger disks take longer to push.

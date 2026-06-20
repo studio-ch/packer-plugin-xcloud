@@ -28,7 +28,7 @@ type Config struct {
 	APIToken    string `mapstructure:"api_token"`
 
 	// Instance identity. Exactly one of Region (a friendly region slug, e.g.
-	// "BIT1", resolved to the UUID at build time) or RegionID (the region
+	// "ZRH1", resolved to the UUID at build time) or RegionID (the region
 	// UUID) must be set. Region is resolved by StepResolveRegion before any
 	// region-scoped API call; the resolved UUID is written back into RegionID.
 	Region   string `mapstructure:"region"`
@@ -226,7 +226,7 @@ func (c *Config) prepare() ([]string, error) {
 	case c.Region != "" && c.RegionID != "":
 		errs = append(errs, errors.New("only one of 'region' or 'region_id' can be used"))
 	case c.Region == "" && c.RegionID == "":
-		errs = append(errs, errors.New("one of 'region' (slug, e.g. \"BIT1\") or 'region_id' (UUID) is required"))
+		errs = append(errs, errors.New("one of 'region' (slug, e.g. \"ZRH1\") or 'region_id' (UUID) is required"))
 	case c.RegionID != "":
 		if _, err := uuid.Parse(c.RegionID); err != nil {
 			errs = append(errs, fmt.Errorf("'region_id' must be a UUID: %w", err))

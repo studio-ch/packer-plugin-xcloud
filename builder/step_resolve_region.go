@@ -10,7 +10,7 @@ import (
 	"github.com/studio-ch/packer-plugin-xcloud/apiclient"
 )
 
-// StepResolveRegion resolves a region slug (cfg.Region, e.g. "BIT1") to its
+// StepResolveRegion resolves a region slug (cfg.Region, e.g. "ZRH1") to its
 // region UUID when region_id was not supplied directly, writing the resolved
 // UUID back into cfg.RegionID. It runs first so every later region-scoped step
 // (register image, create network, create instance) and the artifact see the

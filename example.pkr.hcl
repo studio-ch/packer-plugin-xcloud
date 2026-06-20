@@ -27,7 +27,7 @@ source "xcloud" "macos" {
 
   # Friendly region slug, resolved to the UUID at build time. Use exactly one
   # of `region` (slug) or `region_id` (UUID).
-  region = "BIT1"
+  region = "<region>" # e.g. ZRH1, ALP2
   name   = "packer-macos"
 
   cpu_cores = 4
@@ -97,7 +97,7 @@ source "xcloud" "macos_agent" {
   api_endpoint = "https://<your-cloud-console-host>"
   # api_token  = "..."   # prefer CLOUD_CONSOLE_API_TOKEN
 
-  region = "BIT1" # or region_id = "<uuid>"
+  region = "<region>" # e.g. ZRH1, ALP2; or region_id = "<uuid>"
   name   = "packer-macos-agent"
 
   cpu_cores = 4
